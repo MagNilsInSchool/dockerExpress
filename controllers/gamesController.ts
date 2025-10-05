@@ -49,6 +49,7 @@ export const getTop3GameGenres = async (req: Request, res: Response) => {
 
         if (result.rows.length === 0) {
             sendSuccessResponse(res, "No games have been played yet", result.rows);
+            return;
         }
         sendSuccessResponse(res, "Successfully fetched top 3 game genres!", result.rows);
     } catch (error) {
