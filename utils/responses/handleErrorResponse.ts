@@ -21,25 +21,43 @@ const formatValidationErrors = (zodError: ZodError) => {
     }));
 };
 
+export interface ErrorResponse<T = unknown> {
+    success: false;
+    message: string;
+    error?: string;
+    details?: T;
+}
+
+export const makeErrorResponse = <T = unknown>(message: string, error?: string, details?: T): ErrorResponse<T> => {
+    return { success: false, message, error, details };
+};
+
+export const sendErrorResponse = <T = unknown>(
+    res: Response,
+    message: string,
+    error?: string,
+    details?: T,
+    status = 500
+) => {
+    return res.status(status).json(makeErrorResponse<T>(message, error, details));
+};
+
 export const handleError = (error: unknown, res: Response, code: number = 500) => {
     console.error("Error occurred:", error);
 
     if (error instanceof ZodError) {
-        return res.status(400).send({
-            error: "Validation failed",
-            details: formatValidationErrors(error),
-            message: "The API response doesn't match the expected schema",
-        });
+        return sendErrorResponse(res, "Validation failed", undefined, formatValidationErrors(error), 400);
     }
 
     if (error instanceof CustomError) {
-        return res.status(error.code).send({
-            error: error.message,
-        });
+        return sendErrorResponse(res, error.message, undefined, undefined, error.code);
     }
 
-    res.status(code).send({
-        error: error instanceof Error ? error.message : "Unknown error",
-        message: "Internal server error",
-    });
+    return sendErrorResponse(
+        res,
+        "Internal server error",
+        error instanceof Error ? error.message : "Unknown error",
+        undefined,
+        code
+    );
 };
