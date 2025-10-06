@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+    createPlayer,
     getInactivePlayers,
     getPlayers,
     getPlayerScore,
@@ -13,6 +14,8 @@ export const playersRoute = Router();
 
 // http://localhost:1338/players/
 playersRoute.get("/", getPlayers);
+// http://localhost:1338/players/
+playersRoute.post("/", createPlayer);
 // http://localhost:1338/players/scores
 playersRoute.get("/scores", getPlayersScores);
 // http://localhost:1338/players/:id/scores
