@@ -3,20 +3,104 @@ import { pool } from "../utils/pool.ts";
 import { CustomError, handleError } from "../utils/responses/handleErrorResponse.ts";
 import { sendSuccessResponse } from "../utils/responses/handleSuccessResponse.ts";
 import { type Player, playerInputSchema } from "../schemas/playerSchema.ts";
+import { postGresIdSchema } from "../schemas/postrgresIdSchema.ts";
+import type { Score } from "../interfaces/index.ts";
 
 // @desc GET fetches all players.
 // @route /players
 export const getPlayers = async (req: Request, res: Response) => {
     try {
         const result = await pool.query<Player>(`
-            SELECT * FROM players;`);
+            SELECT * FROM players ORDER BY id;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, `No registered players!`, []);
-            return;
+            throw new CustomError(`No registered players found.`, 404);
         }
 
         sendSuccessResponse(res, "Successfully fetched all info on players!", result.rows);
+    } catch (error) {
+        handleError(error, res);
+    }
+};
+
+// @desc GET fetches specific player based on :id.
+// @route /players/:id
+export const getPlayer = async (req: Request, res: Response) => {
+    try {
+        const validatedId = postGresIdSchema.safeParse(req.params);
+        if (!validatedId.success) throw validatedId.error;
+
+        const result = await pool.query<Player>(
+            `
+            SELECT * FROM players
+            WHERE id = $1;`,
+            [validatedId.data.id]
+        );
+
+        if (result.rows.length === 0) {
+            throw new CustomError(`No registered player with id: ${validatedId.data.id} found.`, 404);
+        }
+
+        sendSuccessResponse(res, `Successfully fetched player with id ${validatedId.data.id}!`, result.rows[0]);
+    } catch (error) {
+        handleError(error, res);
+    }
+};
+
+// @desc PATCH updates the name of specific player based on ID. name requried in json-body
+// @route /players/:id
+export const updatePlayer = async (req: Request, res: Response) => {
+    try {
+        const validatedId = postGresIdSchema.safeParse(req.params);
+        if (!validatedId.success) throw validatedId.error;
+
+        const validatedName = playerInputSchema.safeParse(req.body);
+        if (!validatedName.success) throw validatedName.error;
+
+        const result = await pool.query<{ old_name: string; id: number; name: string }>(
+            `
+            WITH old AS (
+                SELECT name FROM players WHERE id = $2
+            )
+            UPDATE players p
+            SET name = $1
+            WHERE id = $2
+            RETURNING p.id, old.name AS old_name, p.name;
+            `,
+            [validatedName.data.name, validatedId.data.id]
+        );
+
+        sendSuccessResponse(
+            res,
+            `Successfully updated player "${result.rows[0].old_name}" with a new name!`,
+            result.rows
+        );
+    } catch (error) {
+        handleError(error, res);
+    }
+};
+
+// @desc GET fetches all players.
+// @route /players
+export const deletePlayer = async (req: Request, res: Response) => {
+    try {
+        const validatedId = postGresIdSchema.safeParse(req.params);
+        if (!validatedId.success) throw validatedId.error;
+
+        const result = await pool.query<Player>(
+            `
+            DELETE FROM players 
+            WHERE id = $1
+            RETURNING id, name, join_date
+            ;`,
+            [validatedId.data.id]
+        );
+
+        if (result.rows.length === 0) {
+            throw new CustomError(`No registered player with id: ${validatedId.data.id} found.`, 404);
+        }
+
+        sendSuccessResponse(res, `Successfully deleted user ${result.rows[0].name}`, result.rows[0]);
     } catch (error) {
         handleError(error, res);
     }
@@ -46,18 +130,16 @@ export const createPlayer = async (req: Request, res: Response) => {
 // @route /players/scores
 export const getPlayersScores = async (req: Request, res: Response) => {
     try {
-        const result = await pool.query(`
-            SELECT players.name, games.title, scores.score
-            FROM players
-            INNER JOIN scores ON players.id = scores.player_id
-            INNER JOIN games ON games.id = scores.game_id
-            ORDER BY players.name;`);
+        const result = await pool.query<Score>(`
+            SELECT p.name, g.title, s.score
+            FROM players p
+            INNER JOIN scores s ON p.id = s.player_id
+            INNER JOIN games g ON g.id = s.game_id
+            ORDER BY p.name;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, `No games have been played!`, []);
-            return;
+            throw new CustomError(`No games have been played!`, 404);
         }
-
         sendSuccessResponse(res, "Successfully fetched all gamescore info on players!", result.rows);
     } catch (error) {
         handleError(error, res);
@@ -73,29 +155,27 @@ export const getPlayerScore = async (req: Request, res: Response) => {
 
         if (idStringNormalized.length > 15) throw new CustomError(":id length is not allowed to be more than 15.", 400);
 
-        const result = await pool.query(
+        const result = await pool.query<Score>(
             `
-            SELECT players.name, games.title, scores.score
-            FROM players
-            LEFT JOIN scores ON players.id = scores.player_id
-            LEFT JOIN games ON games.id = scores.game_id
-            WHERE LOWER(players.name) = $1;
+            SELECT p.name, g.title, s.score
+            FROM players p
+            LEFT JOIN scores s ON p.id = s.player_id
+            LEFT JOIN games g ON g.id = s.game_id
+            WHERE LOWER(p.name) = $1;
             `,
             [idStringNormalized]
         );
 
-        if (result.rows.length === 0) throw new CustomError(`No player with name: ${idStringNormalized} found!`, 404);
+        if (result.rows.length === 0) {
+            throw new CustomError(`No player with name: ${idStringNormalized} found!`, 404);
+        }
 
         const scores = result.rows
             .filter((result) => result.score !== null)
             .map((r) => ({ title: r.title, score: r.score }));
 
         if (scores.length === 0) {
-            sendSuccessResponse(res, `Player ${result.rows[0].name} has not registered any scores yet.`, {
-                name: result.rows[0].name,
-                scores: [],
-            });
-            return;
+            throw new CustomError(`Player ${result.rows[0].name} has not registered any scores yet.`, 404);
         }
 
         sendSuccessResponse(res, `Successfully fetched ${result.rows[0].name} scores!`, {
@@ -111,7 +191,8 @@ export const getPlayerScore = async (req: Request, res: Response) => {
 // @route /players/top
 export const getTop3PlayerScores = async (req: Request, res: Response) => {
     try {
-        const result = await pool.query(`
+        //Value of s.score is a number but SUM returns a string to be safe incase the sum turns INTEGER to BIGINT.
+        const result = await pool.query<{ name: string; total_score: string }>(`
             SELECT p.name, SUM(s.score) AS total_score 
             FROM players p
             JOIN scores s ON p.id = s.player_id
@@ -120,10 +201,11 @@ export const getTop3PlayerScores = async (req: Request, res: Response) => {
             LIMIT 3;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, `No games have been played!`, []);
-            return;
+            throw new CustomError(`No games have been played!`, 404);
         }
-        sendSuccessResponse(res, "Successfully fetched top 3 scores!", result.rows);
+        //Converts total_score to number.
+        const rows = result.rows.map((row) => ({ name: row.name, total_score: Number(row.total_score) }));
+        sendSuccessResponse(res, "Successfully fetched top 3 scores!", rows);
     } catch (error) {
         handleError(error, res);
     }
@@ -141,10 +223,8 @@ export const getInactivePlayers = async (req: Request, res: Response) => {
             ORDER BY p.id;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, "There are no inactive players!", result.rows);
-            return;
+            throw new CustomError("There are no inactive players!", 404);
         }
-
         sendSuccessResponse(res, "Successfully fetched inactive", result.rows);
     } catch (error) {
         handleError(error, res);
@@ -162,10 +242,8 @@ export const getRecentlyJoinedPlayers = async (req: Request, res: Response) => {
             ORDER BY p.join_date ASC;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, "There are no new players within the last 30 days", []);
-            return;
+            throw new CustomError("There are no new players within the last 30 days", 404);
         }
-
         sendSuccessResponse(res, "Successfully fetched players registered within the last 30 days.", result.rows);
     } catch (error) {
         handleError(error, res);
@@ -195,8 +273,7 @@ export const getPlayersFavoriteGame = async (req: Request, res: Response) => {
             ORDER BY p.id;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, `No games have been played!`, []);
-            return;
+            throw new CustomError(`No games have been played!`, 404);
         }
 
         sendSuccessResponse(res, "Successfully fetched players favorite games.", result.rows);

@@ -80,7 +80,9 @@ export const deleteGame = async (req: Request, res: Response) => {
             [validatedId.data.id]
         );
 
-        if (result.rows.length === 0) throw new CustomError(`No game with id: ${validatedId.data.id} found!`, 404);
+        if (result.rows.length === 0) {
+            throw new CustomError(`No game with id: ${validatedId.data.id} found!`, 404);
+        }
 
         sendSuccessResponse(res, "Successfully deleted game!", result.rows[0]);
     } catch (error) {
@@ -122,8 +124,7 @@ export const getTop3GameGenres = async (req: Request, res: Response) => {
             LIMIT 3;`);
 
         if (result.rows.length === 0) {
-            sendSuccessResponse(res, "No games have been played yet", result.rows);
-            return;
+            throw new CustomError("No games have been played yet", 404);
         }
         sendSuccessResponse(res, "Successfully fetched top 3 game genres!", result.rows);
     } catch (error) {

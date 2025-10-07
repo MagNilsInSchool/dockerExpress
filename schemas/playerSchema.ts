@@ -10,7 +10,7 @@ export const playerInputSchema = z
     })
     .strict();
 
-// Combines playerInputSchema and postGresIdSchema then adds join_date. z.preprocess is run before validation where we check if the value if a string, if so it gets turned into a date object, else remains as is. Is then checked if it is a date.
+// Combines playerInputSchema and postGresIdSchema then adds join_date. z.preprocess is run before validation where we check if the value if a string, if so it gets turned into a date object, else remains as is. Is then checked if it is a valid date.
 export const playerSchema = playerInputSchema.extend(postGresIdSchema.shape).extend({
     join_date: z.preprocess((v) => (typeof v === "string" ? new Date(v) : v), z.date()),
 });

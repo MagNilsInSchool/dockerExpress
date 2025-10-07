@@ -13,7 +13,6 @@ export default defineConfig([
     tseslint.configs.recommended,
     {
         rules: {
-            "no-const-assign": "warn",
             "no-unassigned-vars": "error",
             "no-unused-vars": "error",
             "use-isnan": "error",

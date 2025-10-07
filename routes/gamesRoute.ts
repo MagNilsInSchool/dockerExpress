@@ -14,11 +14,13 @@ export const gamesRoute = Router();
 gamesRoute.get("/", getGames);
 // http://localhost:1338/games/
 gamesRoute.post("/", createGame);
+// http://localhost:1338/games/genre/popular
+gamesRoute.get("/genre/popular", getTop3GameGenres);
+
+//! Param routes after static routes to prevent errors. Can also specify :id to be numbers ex: router.get("/:id(\\d+)", getGame);
 // http://localhost:1338/games/:id
 gamesRoute.get("/:id", getGame);
 // http://localhost:1338/games/:id
 gamesRoute.put("/:id", updateGame);
 // http://localhost:1338/games/:id
 gamesRoute.delete("/:id", deleteGame);
-// http://localhost:1338/games/genre/popular
-gamesRoute.get("/genre/popular", getTop3GameGenres);

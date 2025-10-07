@@ -1,7 +1,7 @@
 CREATE TABLE games  (
 id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-title VARCHAR(250) UNIQUE NOT NULL,
-genre VARCHAR(50) NOT NULL
+title VARCHAR(50) UNIQUE NOT NULL,
+genre VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE players (
@@ -10,13 +10,16 @@ name VARCHAR(15) UNIQUE NOT NULL,
 join_date DATE DEFAULT CURRENT_DATE NOT NULL);
 
 CREATE TABLE scores (
-id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-player_id INT,
-FOREIGN KEY (player_id) REFERENCES players(id),
-game_id INT,
-FOREIGN KEY (game_id) REFERENCES games(id),
-score INT NOT NULL,
-date_played TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP);
+  id INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+  player_id INT,
+  CONSTRAINT fk_scores_player FOREIGN KEY (player_id)
+    REFERENCES players(id) ON DELETE CASCADE,-- So that deleting a player removes scores of that player too
+  game_id INT,
+  CONSTRAINT fk_scores_game FOREIGN KEY (game_id)
+    REFERENCES games(id) ON DELETE CASCADE,
+  score INT NOT NULL,
+  date_played TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
 
 INSERT INTO players(name) 
 VALUES('Beancicle'),('MrBean'),('BeanyMan'),('JellyBean'),('FlickTheBean')
